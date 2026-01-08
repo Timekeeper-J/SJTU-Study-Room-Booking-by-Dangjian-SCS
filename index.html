@@ -4,23 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>组织部自习室预约</title>
-    <!-- 引入 Tailwind CSS (为了好看) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Vue.js (为了逻辑简单) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- 引入 LeanCloud SDK (为了存数据) -->
     <script src="https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js"></script>
     
     <style>
-        /* 简单的苹果风格微调 */
         body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .btn { transition: all 0.2s; }
         .btn:active { transform: scale(0.95); }
+        /* 关键修复：防止Vue加载前显示花括号 */
+        [v-cloak] { display: none; }
     </style>
 </head>
 <body>
-    <div id="app" class="max-w-md mx-auto p-4 pb-20">
+    <!-- 加上 v-cloak，没加载好之前整个隐藏 -->
+    <div id="app" class="max-w-md mx-auto p-4 pb-20" v-cloak>
         <header class="mb-6 mt-4">
             <h1 class="text-3xl font-bold text-gray-900">自习室预约 📅</h1>
             <p class="text-gray-500 text-sm mt-1">你好，{{ currentUser || '请点击下方设置姓名' }}</p>
@@ -80,29 +79,28 @@
         </div>
         
         <div class="mt-8 text-center text-gray-400 text-xs">
-            上海交大计算机学院党建研究会组织部
+            交大计算机学院党建研究会组织部
         </div>
     </div>
 
     <script>
         const { createApp, ref, onMounted } = Vue;
 
-        // --- 配置区域 START ---
-        // 请替换为你的 LeanCloud App ID 和 Key
+        // --- ⚠️ 记得把这里的 ID 和 Key 换回你自己的！---
         const APP_ID = 'MpWMjFVRc0H3Y5BAQuUk0DN7-gzGzoHsz'; 
         const APP_KEY = '6VXWHUYqbTjNVtqqnhmoJOzN';
-        const SERVER_URL = 'https://avoscloud.com'; // 如果是国际版不用改，国内版需填绑定域名(如果有)或保持默认试用
-        // --- 配置区域 END ---
+        const SERVER_URL = 'https://avoscloud.com'; 
+        // ---------------------------------------------
 
         AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL });
 
-        createApp({
+        // 修复点：这里原来没有赋值给 const app，导致后面 app.mount 报错
+        const app = createApp({
             setup() {
                 const days = ref([]);
                 const currentUser = ref(localStorage.getItem('sjtu_user') || '');
                 const tempName = ref('');
 
-                // 生成未来7天
                 const initDays = () => {
                     const arr = [];
                     for(let i=0; i<7; i++) {
@@ -114,42 +112,40 @@
                     days.value = arr;
                 };
 
-                // 从 LeanCloud 拉取数据
                 const fetchData = async () => {
-                    const query = new AV.Query('Booking');
-                    query.greaterThanOrEqualTo('date', days.value[0].dateStr);
-                    const results = await query.find();
-                    
-                    results.forEach(record => {
-                        const data = record.toJSON();
-                        const targetDay = days.value.find(d => d.dateStr === data.date);
-                        if(targetDay) {
-                            targetDay.id = record.objectId; // 保存数据库ID方便更新
-                            targetDay.booker = data.booker;
-                            targetDay.followers = data.followers || [];
-                        }
-                    });
+                    try {
+                        const query = new AV.Query('Booking');
+                        query.greaterThanOrEqualTo('date', days.value[0].dateStr);
+                        const results = await query.find();
+                        
+                        results.forEach(record => {
+                            const data = record.toJSON();
+                            const targetDay = days.value.find(d => d.dateStr === data.date);
+                            if(targetDay) {
+                                targetDay.id = record.objectId;
+                                targetDay.booker = data.booker;
+                                targetDay.followers = data.followers || [];
+                            }
+                        });
+                    } catch (e) {
+                        console.error("数据拉取失败", e);
+                    }
                 };
 
-                // 登录
                 const login = () => {
                     if(!tempName.value) return alert('请输入姓名');
                     currentUser.value = tempName.value;
                     localStorage.setItem('sjtu_user', tempName.value);
                 };
 
-                // 成为预约人
                 const bookAsMain = async (day) => {
                     if(!currentUser.value) return alert('请先设置姓名');
                     
-                    // 规则：同一个人不能连续预约
-                    // 获取昨天的日期字符串
                     const todayDate = new Date(day.dateStr);
                     const yestDate = new Date(todayDate);
                     yestDate.setDate(todayDate.getDate() - 1);
                     const yestStr = yestDate.toISOString().split('T')[0];
                     
-                    // 简单查询前一天的记录 (前端简单校验，防君子不防小人)
                     const prevQuery = new AV.Query('Booking');
                     prevQuery.equalTo('date', yestStr);
                     prevQuery.equalTo('booker', currentUser.value);
@@ -163,7 +159,6 @@
                     saveToCloud(day, { booker: currentUser.value });
                 };
 
-                // 成为随行人
                 const bookAsFollower = (day) => {
                     if(!currentUser.value) return alert('请先设置姓名');
                     if(day.followers && day.followers.includes(currentUser.value)) return;
@@ -173,30 +168,24 @@
                     saveToCloud(day, { followers: newFollowers });
                 };
 
-                // 取消
                 const cancelBooking = (day, role) => {
                     if(!confirm('确定要取消吗？')) return;
                     if(role === 'booker') {
-                        saveToCloud(day, { booker: null, followers: [] }); // 预约人走了，随行人也清空(规则可自定)
+                        saveToCloud(day, { booker: null, followers: [] });
                     } else {
                         const newFollowers = day.followers.filter(n => n !== currentUser.value);
                         saveToCloud(day, { followers: newFollowers });
                     }
                 };
 
-                // 保存到 LeanCloud
                 const saveToCloud = async (day, updates) => {
                     try {
-                        // 本地乐观更新（让界面先变，显得快）
                         Object.assign(day, updates);
-
                         if(day.id) {
-                            // 更新现有记录
                             const todo = AV.Object.createWithoutData('Booking', day.id);
                             Object.keys(updates).forEach(k => todo.set(k, updates[k]));
                             await todo.save();
                         } else {
-                            // 新建记录
                             const Booking = AV.Object.extend('Booking');
                             const booking = new Booking();
                             booking.set('date', day.dateStr);
@@ -207,11 +196,10 @@
                     } catch (error) {
                         console.error(error);
                         alert('操作失败，可能有人刚抢先了，请刷新页面。');
-                        fetchData(); // 失败回滚
+                        fetchData();
                     }
                 };
 
-                // 辅助函数
                 const formatDate = (str) => {
                     const d = new Date(str);
                     const week = ['日','一','二','三','四','五','六'];
@@ -238,6 +226,7 @@
             }
         });
         
+        // 挂载
         app.mount('#app');
     </script>
 </body>
