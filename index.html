@@ -4,73 +4,80 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>组织部自习室预约</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js"></script>
+    <!-- 国内极速源 -->
+    <script src="https://cdn.staticfile.net/tailwindcss/3.3.3/cdn.min.js"></script>
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.staticfile.net/leancloud-storage/4.15.0/av-min.js"></script>
     
     <style>
         body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .btn { transition: all 0.2s; }
         .btn:active { transform: scale(0.95); }
-        /* 关键修复：防止Vue加载前显示花括号 */
+        #loading-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #F2F2F7; z-index: 999; display: flex;
+            justify-content: center; align-items: center; color: #666;
+        }
         [v-cloak] { display: none; }
     </style>
 </head>
 <body>
-    <!-- 加上 v-cloak，没加载好之前整个隐藏 -->
-    <div id="app" class="max-w-md mx-auto p-4 pb-20" v-cloak>
-        <header class="mb-6 mt-4">
-            <h1 class="text-3xl font-bold text-gray-900">自习室预约 📅</h1>
-            <p class="text-gray-500 text-sm mt-1">你好，{{ currentUser || '请点击下方设置姓名' }}</p>
+    <div id="loading-mask"><h2 style="font-size:20px; font-weight:bold;">正在加载...</h2></div>
+
+    <div id="app" class="max-w-7xl mx-auto p-6 pb-20" style="display:none;" v-cloak>
+        <header class="mb-8 mt-2 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">自习室预约 📅</h1>
+                <p class="text-gray-500 text-sm mt-1">你好，${ currentUser || '未设置姓名' }</p>
+            </div>
+            <div v-if="!currentUser" class="bg-blue-50 border border-blue-100 p-3 rounded-lg flex gap-2 items-center">
+                <input v-model="tempName" @keyup.enter="login" type="text" placeholder="输入姓名..." class="border p-1.5 rounded text-sm w-32">
+                <button @click="login" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium btn">确定</button>
+            </div>
+            <div v-else><button @click="logout" class="text-gray-400 text-xs hover:text-gray-600 underline">切换账号</button></div>
         </header>
 
-        <!-- 身份设置区 -->
-        <div v-if="!currentUser" class="mb-6 card p-4 bg-blue-50 border border-blue-100">
-            <p class="text-sm text-blue-800 mb-2">首次使用请输入你的姓名：</p>
-            <div class="flex gap-2">
-                <input v-model="tempName" type="text" placeholder="例：张三" class="border p-2 rounded flex-1">
-                <button @click="login" class="bg-blue-600 text-white px-4 py-2 rounded font-medium btn">确定</button>
-            </div>
-        </div>
-
-        <!-- 日期列表 -->
-        <div class="space-y-4">
-            <div v-for="day in days" :key="day.dateStr" class="card p-5 relative overflow-hidden">
-                <!-- 顶部日期 -->
-                <div class="flex justify-between items-baseline mb-3">
-                    <h2 class="text-xl font-bold text-gray-800">{{ formatDate(day.dateStr) }}</h2>
-                    <span :class="getStatusColor(day)" class="text-xs font-bold px-2 py-1 rounded-full bg-opacity-20">
-                        {{ getStatusText(day) }}
-                    </span>
-                </div>
-
-                <!-- 预约详情 -->
-                <div class="space-y-3">
-                    <!-- 主预约人 -->
-                    <div class="flex items-center gap-2">
-                        <span class="w-16 text-gray-500 text-sm">预约人</span>
-                        <div v-if="day.booker" class="font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                            {{ day.booker }}
-                            <span v-if="day.booker === currentUser" class="text-xs text-red-500 ml-1 cursor-pointer" @click="cancelBooking(day, 'booker')">(取消)</span>
+        <!-- 主布局：网格 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <!-- 每天一个大卡片 -->
+            <div v-for="day in days" :key="day.dateStr" class="card p-5 relative overflow-hidden flex flex-col h-full border border-gray-100">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-3 text-center">${ formatDate(day.dateStr) }</h2>
+                
+                <!-- 卡片内部分为三个时段 -->
+                <div class="flex-1 space-y-4">
+                    <div v-for="(slot, slotId) in day.slots" :key="slotId" class="p-3 rounded-lg bg-gray-50/50">
+                        <!-- 时段标题 -->
+                        <div class="flex justify-between items-baseline mb-3">
+                            <h3 class="font-bold text-gray-700">${ slot.label }</h3>
+                            <span :class="getStatusColor(slot)" class="text-xs font-bold px-2 py-1 rounded-full bg-opacity-20 whitespace-nowrap">${ getStatusText(slot) }</span>
                         </div>
-                        <button v-else @click="bookAsMain(day)" :disabled="isFull(day)" class="text-blue-600 text-sm font-medium hover:bg-blue-50 px-2 py-1 rounded btn">
-                            + 我来预约
-                        </button>
-                    </div>
 
-                    <!-- 随行人 -->
-                    <div class="flex items-start gap-2">
-                        <span class="w-16 text-gray-500 text-sm mt-1">随行 ({{day.followers ? day.followers.length : 0}}/3)</span>
-                        <div class="flex-1 flex flex-wrap gap-2">
-                            <span v-for="f in day.followers" :key="f" class="bg-gray-100 px-2 py-1 rounded text-sm text-gray-800">
-                                {{ f }}
-                                <span v-if="f === currentUser" class="text-xs text-red-500 ml-1 cursor-pointer" @click="cancelBooking(day, 'follower')">×</span>
-                            </span>
-                            <button v-if="(!day.followers || day.followers.length < 3) && day.booker" 
-                                    @click="bookAsFollower(day)" 
-                                    class="text-blue-600 text-sm font-medium hover:bg-blue-50 px-2 py-1 rounded btn">
-                                + 加入
+                        <!-- 预约人模块 -->
+                        <div class="mb-3">
+                            <div v-if="slot.booker" class="flex justify-between items-center bg-blue-50 text-blue-900 px-3 py-2 rounded-lg font-medium text-sm">
+                                <span><span class="text-xs mr-1 opacity-60">预约:</span> ${ slot.booker }</span>
+                                <span v-if="slot.booker === currentUser" class="text-xs text-red-500 cursor-pointer hover:bg-red-50 p-1 rounded" @click="cancelBooking(day, slot, 'booker')">取消</span>
+                            </div>
+                            <button v-else @click="bookAsMain(day, slot)" :disabled="slot.booker" class="w-full py-1.5 border-2 border-dashed border-gray-300 text-gray-400 rounded-lg hover:border-blue-400 hover:text-blue-500 btn text-xs">
+                                + 认领预约人
+                            </button>
+                        </div>
+                        
+                        <!-- 随行人模块 -->
+                        <div>
+                            <div class="flex flex-wrap gap-2 min-h-[28px]">
+                                <span v-for="f in slot.followers" :key="f" class="bg-gray-200 px-2 py-0.5 rounded text-xs text-gray-700 flex items-center gap-1">
+                                    ${ f }
+                                    <span v-if="f === currentUser" class="text-red-400 cursor-pointer" @click="cancelBooking(day, slot, 'follower')">×</span>
+                                </span>
+                            </div>
+                             <button v-if="!slot.followers || slot.followers.length < 3" 
+                                    @click="bookAsFollower(day, slot)" 
+                                    :disabled="slot.followers && slot.followers.includes(currentUser)"
+                                    class="w-full mt-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs rounded border btn">
+                                ${ (slot.followers && slot.followers.includes(currentUser)) ? `已加入 (${slot.followers.length}/3)` : `+ 加入随行 (${slot.followers ? slot.followers.length : 0}/3)` }
                             </button>
                         </div>
                     </div>
@@ -78,40 +85,47 @@
             </div>
         </div>
         
-        <div class="mt-8 text-center text-gray-400 text-xs">
-            交大计算机学院党建研究会组织部
-        </div>
+        <div class="mt-12 text-center text-gray-400 text-xs pb-10">上海交大计算机学院党建研究会组织部</div>
     </div>
 
     <script>
         const { createApp, ref, onMounted } = Vue;
 
-        // --- ⚠️ 记得把这里的 ID 和 Key 换回你自己的！---
+        // --- ⚠️ 填入你的 ID 和 Key ---
         const APP_ID = 'MpWMjFVRc0H3Y5BAQuUk0DN7-gzGzoHsz'; 
         const APP_KEY = '6VXWHUYqbTjNVtqqnhmoJOzN';
-        const SERVER_URL = 'https://avoscloud.com'; 
-        // ---------------------------------------------
+        const SERVER_URL = 'https://avoscloud.com'; // 国际版
+        // -------------------------
 
         AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL });
 
-        // 修复点：这里原来没有赋值给 const app，导致后面 app.mount 报错
         const app = createApp({
+            compilerOptions: { delimiters: ['${', '}'] },
             setup() {
                 const days = ref([]);
                 const currentUser = ref(localStorage.getItem('sjtu_user') || '');
                 const tempName = ref('');
 
+                // 数据结构大改：每天包含三个时段
                 const initDays = () => {
                     const arr = [];
                     for(let i=0; i<7; i++) {
                         const d = new Date();
                         d.setDate(d.getDate() + i);
                         const dateStr = d.toISOString().split('T')[0];
-                        arr.push({ dateStr, booker: null, followers: [] });
+                        arr.push({ 
+                            dateStr, 
+                            slots: {
+                                s1: { id: 's1', label: '9:00 - 13:00', booker: null, followers: [] },
+                                s2: { id: 's2', label: '14:00 - 18:00', booker: null, followers: [] },
+                                s3: { id: 's3', label: '19:00 - 22:30', booker: null, followers: [] }
+                            }
+                        });
                     }
                     days.value = arr;
                 };
 
+                // 拉取数据并填充到新的 slots 结构里
                 const fetchData = async () => {
                     try {
                         const query = new AV.Query('Booking');
@@ -121,14 +135,17 @@
                         results.forEach(record => {
                             const data = record.toJSON();
                             const targetDay = days.value.find(d => d.dateStr === data.date);
-                            if(targetDay) {
-                                targetDay.id = record.objectId;
-                                targetDay.booker = data.booker;
-                                targetDay.followers = data.followers || [];
+                            if(targetDay && data.slots) {
+                                targetDay.id = record.objectId; // 保存天的ID
+                                // 合并云端数据到本地
+                                Object.assign(targetDay.slots.s1, data.slots.s1);
+                                Object.assign(targetDay.slots.s2, data.slots.s2);
+                                Object.assign(targetDay.slots.s3, data.slots.s3);
                             }
                         });
-                    } catch (e) {
-                        console.error("数据拉取失败", e);
+                    } finally {
+                        document.getElementById('loading-mask').style.display = 'none';
+                        document.getElementById('app').style.display = 'block';
                     }
                 };
 
@@ -137,83 +154,108 @@
                     currentUser.value = tempName.value;
                     localStorage.setItem('sjtu_user', tempName.value);
                 };
+                
+                const logout = () => {
+                    localStorage.removeItem('sjtu_user');
+                    location.reload();
+                };
 
-                const bookAsMain = async (day) => {
+                // 核心逻辑：预约人不能连续预约同一天的两个时段
+                const bookAsMain = async (day, slot) => {
                     if(!currentUser.value) return alert('请先设置姓名');
-                    
-                    const todayDate = new Date(day.dateStr);
-                    const yestDate = new Date(todayDate);
-                    yestDate.setDate(todayDate.getDate() - 1);
-                    const yestStr = yestDate.toISOString().split('T')[0];
-                    
-                    const prevQuery = new AV.Query('Booking');
-                    prevQuery.equalTo('date', yestStr);
-                    prevQuery.equalTo('booker', currentUser.value);
-                    const prevRecord = await prevQuery.first();
-                    
-                    if(prevRecord) {
-                        alert(`同学，根据规定，你已预约了 ${yestStr}，不能连续两天担任主预约人哦！`);
-                        return;
+
+                    // 检查相邻时段是否是自己预约的
+                    const { s1, s2, s3 } = day.slots;
+                    if (slot.id === 's1' && s2.booker === currentUser.value) {
+                        return alert('不能连续预约上午和下午两个时段哦！');
+                    }
+                    if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) {
+                        return alert('不能连续预约相邻的两个时段哦！');
+                    }
+                    if (slot.id === 's3' && s2.booker === currentUser.value) {
+                        return alert('不能连续预约下午和晚上两个时段哦！');
                     }
 
-                    saveToCloud(day, { booker: currentUser.value });
-                };
-
-                const bookAsFollower = (day) => {
-                    if(!currentUser.value) return alert('请先设置姓名');
-                    if(day.followers && day.followers.includes(currentUser.value)) return;
-                    if(day.booker === currentUser.value) return alert('你已经是预约人了');
+                    // 如果是随行人，自动转为预约人
+                    if(slot.followers.includes(currentUser.value)) {
+                        slot.followers = slot.followers.filter(n => n !== currentUser.value);
+                    }
                     
-                    const newFollowers = [...(day.followers || []), currentUser.value];
-                    saveToCloud(day, { followers: newFollowers });
+                    slot.booker = currentUser.value;
+                    saveToCloud(day);
                 };
 
-                const cancelBooking = (day, role) => {
+                // 随行人逻辑（无限制）
+                const bookAsFollower = (day, slot) => {
+                    if(!currentUser.value) return alert('请先设置姓名');
+                    if(slot.booker === currentUser.value) return alert('你已经是该时段的预约人了');
+                    if(slot.followers.includes(currentUser.value)) return;
+                    
+                    slot.followers.push(currentUser.value);
+                    saveToCloud(day);
+                };
+
+                // 取消逻辑
+                const cancelBooking = (day, slot, role) => {
                     if(!confirm('确定要取消吗？')) return;
                     if(role === 'booker') {
-                        saveToCloud(day, { booker: null, followers: [] });
+                        slot.booker = null;
                     } else {
-                        const newFollowers = day.followers.filter(n => n !== currentUser.value);
-                        saveToCloud(day, { followers: newFollowers });
+                        slot.followers = slot.followers.filter(n => n !== currentUser.value);
                     }
+                    saveToCloud(day);
                 };
 
-                const saveToCloud = async (day, updates) => {
+                // 保存逻辑大改：不再传具体更新，而是直接保存整个 day 的 slots 对象
+                const saveToCloud = async (day) => {
                     try {
-                        Object.assign(day, updates);
-                        if(day.id) {
+                        const dataToSave = {
+                            slots: {
+                                s1: { booker: day.slots.s1.booker, followers: day.slots.s1.followers },
+                                s2: { booker: day.slots.s2.booker, followers: day.slots.s2.followers },
+                                s3: { booker: day.slots.s3.booker, followers: day.slots.s3.followers }
+                            }
+                        };
+
+                        if(day.id) { // 更新
                             const todo = AV.Object.createWithoutData('Booking', day.id);
-                            Object.keys(updates).forEach(k => todo.set(k, updates[k]));
+                            todo.set('slots', dataToSave.slots);
                             await todo.save();
-                        } else {
+                        } else { // 新建
                             const Booking = AV.Object.extend('Booking');
                             const booking = new Booking();
                             booking.set('date', day.dateStr);
-                            Object.keys(updates).forEach(k => booking.set(k, updates[k]));
+                            booking.set('slots', dataToSave.slots);
                             const res = await booking.save();
-                            day.id = res.objectId;
+                            day.id = res.objectId; // 保存ID，下次就是更新了
                         }
                     } catch (error) {
                         console.error(error);
-                        alert('操作失败，可能有人刚抢先了，请刷新页面。');
-                        fetchData();
+                        alert('保存失败，请刷新重试');
+                        fetchData(); // 失败后从云端拉取，防止数据不一致
                     }
                 };
-
+                
                 const formatDate = (str) => {
                     const d = new Date(str);
                     const week = ['日','一','二','三','四','五','六'];
-                    return `${d.getMonth()+1}月${d.getDate()}日 周${week[d.getDay()]}`;
+                    return `${d.getMonth()+1}.${d.getDate()} 周${week[d.getDay()]}`;
                 };
-                const isFull = (day) => day.booker && day.followers && day.followers.length >= 3;
-                const getStatusText = (day) => {
-                    if (!day.booker) return '可预约';
-                    if (isFull(day)) return '已满员';
+                
+                // 状态逻辑现在针对 slot
+                const getStatusText = (slot) => {
+                    const isFull = slot.followers && slot.followers.length >= 3;
+                    if (slot.booker && isFull) return '已满员';
+                    if (!slot.booker && (!slot.followers || slot.followers.length === 0)) return '空闲';
+                    if (!slot.booker && slot.followers.length > 0) return '缺预约人';
                     return '可加入';
                 };
-                const getStatusColor = (day) => {
-                    if (!day.booker) return 'bg-green-100 text-green-700';
-                    if (isFull(day)) return 'bg-red-100 text-red-700';
+                
+                const getStatusColor = (slot) => {
+                    const status = getStatusText(slot);
+                    if (status === '已满员') return 'bg-red-100 text-red-700';
+                    if (status === '空闲') return 'bg-green-100 text-green-700';
+                    if (status === '缺预约人') return 'bg-orange-100 text-orange-700';
                     return 'bg-blue-100 text-blue-700';
                 };
 
@@ -222,11 +264,10 @@
                     fetchData();
                 });
 
-                return { days, currentUser, tempName, login, bookAsMain, bookAsFollower, cancelBooking, formatDate, isFull, getStatusText, getStatusColor };
+                return { days, currentUser, tempName, login, logout, bookAsMain, bookAsFollower, cancelBooking, formatDate, getStatusText, getStatusColor };
             }
         });
         
-        // 挂载
         app.mount('#app');
     </script>
 </body>
