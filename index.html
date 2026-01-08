@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>组织部自习室预约</title>
-    <!-- 国内极速源 -->
-    <script src="https://cdn.staticfile.net/tailwindcss/3.3.3/cdn.min.js"></script>
-    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
-    <script src="https://cdn.staticfile.net/leancloud-storage/4.15.0/av-min.js"></script>
+    
+    <!-- 1. 核心库换用 BootCDN (国内最稳，修复 404 问题) -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/leancloud-storage/4.15.0/av-min.js"></script>
+    
+    <!-- 2. UI库使用官方源 (确保文件存在) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
         body { background-color: #F2F2F7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -15,6 +18,8 @@
         .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .btn { transition: all 0.2s; }
         .btn:active { transform: scale(0.95); }
+        
+        /* 加载动画 */
         #loading-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #F2F2F7; z-index: 999; display: flex;
@@ -91,13 +96,21 @@
     <script>
         const { createApp, ref, onMounted } = Vue;
 
-        // --- ⚠️ 填入你的 ID 和 Key ---
+        // --- ⚠️ 别忘了填回你的 ID 和 Key ---
         const APP_ID = 'MpWMjFVRc0H3Y5BAQuUk0DN7-gzGzoHsz'; 
         const APP_KEY = '6VXWHUYqbTjNVtqqnhmoJOzN';
-        const SERVER_URL = 'https://avoscloud.com'; // 国际版
+        const SERVER_URL = 'https://avoscloud.com';
         // -------------------------
 
-        AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL });
+        // 错误捕捉
+        window.onerror = function(msg) { console.error('Global Error:', msg); return false; };
+
+        // 检查库是否加载成功
+        if (typeof AV === 'undefined' || typeof Vue === 'undefined') {
+            alert('系统加载缓慢或失败，请检查网络（建议关闭代理或VPN）后刷新页面。');
+        } else {
+            AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL });
+        }
 
         const app = createApp({
             compilerOptions: { delimiters: ['${', '}'] },
@@ -106,7 +119,6 @@
                 const currentUser = ref(localStorage.getItem('sjtu_user') || '');
                 const tempName = ref('');
 
-                // 数据结构大改：每天包含三个时段
                 const initDays = () => {
                     const arr = [];
                     for(let i=0; i<7; i++) {
@@ -125,7 +137,6 @@
                     days.value = arr;
                 };
 
-                // 拉取数据并填充到新的 slots 结构里
                 const fetchData = async () => {
                     try {
                         const query = new AV.Query('Booking');
@@ -136,8 +147,7 @@
                             const data = record.toJSON();
                             const targetDay = days.value.find(d => d.dateStr === data.date);
                             if(targetDay && data.slots) {
-                                targetDay.id = record.objectId; // 保存天的ID
-                                // 合并云端数据到本地
+                                targetDay.id = record.objectId;
                                 Object.assign(targetDay.slots.s1, data.slots.s1);
                                 Object.assign(targetDay.slots.s2, data.slots.s2);
                                 Object.assign(targetDay.slots.s3, data.slots.s3);
@@ -160,23 +170,15 @@
                     location.reload();
                 };
 
-                // 核心逻辑：预约人不能连续预约同一天的两个时段
                 const bookAsMain = async (day, slot) => {
                     if(!currentUser.value) return alert('请先设置姓名');
 
-                    // 检查相邻时段是否是自己预约的
+                    // 检查相邻时段
                     const { s1, s2, s3 } = day.slots;
-                    if (slot.id === 's1' && s2.booker === currentUser.value) {
-                        return alert('不能连续预约上午和下午两个时段哦！');
-                    }
-                    if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) {
-                        return alert('不能连续预约相邻的两个时段哦！');
-                    }
-                    if (slot.id === 's3' && s2.booker === currentUser.value) {
-                        return alert('不能连续预约下午和晚上两个时段哦！');
-                    }
+                    if (slot.id === 's1' && s2.booker === currentUser.value) return alert('不能连续预约上午和下午两个时段哦！');
+                    if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) return alert('不能连续预约相邻的两个时段哦！');
+                    if (slot.id === 's3' && s2.booker === currentUser.value) return alert('不能连续预约下午和晚上两个时段哦！');
 
-                    // 如果是随行人，自动转为预约人
                     if(slot.followers.includes(currentUser.value)) {
                         slot.followers = slot.followers.filter(n => n !== currentUser.value);
                     }
@@ -185,7 +187,6 @@
                     saveToCloud(day);
                 };
 
-                // 随行人逻辑（无限制）
                 const bookAsFollower = (day, slot) => {
                     if(!currentUser.value) return alert('请先设置姓名');
                     if(slot.booker === currentUser.value) return alert('你已经是该时段的预约人了');
@@ -195,7 +196,6 @@
                     saveToCloud(day);
                 };
 
-                // 取消逻辑
                 const cancelBooking = (day, slot, role) => {
                     if(!confirm('确定要取消吗？')) return;
                     if(role === 'booker') {
@@ -206,7 +206,6 @@
                     saveToCloud(day);
                 };
 
-                // 保存逻辑大改：不再传具体更新，而是直接保存整个 day 的 slots 对象
                 const saveToCloud = async (day) => {
                     try {
                         const dataToSave = {
@@ -217,22 +216,22 @@
                             }
                         };
 
-                        if(day.id) { // 更新
+                        if(day.id) {
                             const todo = AV.Object.createWithoutData('Booking', day.id);
                             todo.set('slots', dataToSave.slots);
                             await todo.save();
-                        } else { // 新建
+                        } else {
                             const Booking = AV.Object.extend('Booking');
                             const booking = new Booking();
                             booking.set('date', day.dateStr);
                             booking.set('slots', dataToSave.slots);
                             const res = await booking.save();
-                            day.id = res.objectId; // 保存ID，下次就是更新了
+                            day.id = res.objectId;
                         }
                     } catch (error) {
                         console.error(error);
-                        alert('保存失败，请刷新重试');
-                        fetchData(); // 失败后从云端拉取，防止数据不一致
+                        alert('保存失败，请检查网络');
+                        fetchData();
                     }
                 };
                 
@@ -242,7 +241,6 @@
                     return `${d.getMonth()+1}.${d.getDate()} 周${week[d.getDay()]}`;
                 };
                 
-                // 状态逻辑现在针对 slot
                 const getStatusText = (slot) => {
                     const isFull = slot.followers && slot.followers.length >= 3;
                     if (slot.booker && isFull) return '已满员';
