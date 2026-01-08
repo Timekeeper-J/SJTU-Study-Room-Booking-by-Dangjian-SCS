@@ -11,10 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* 1. 整体背景微调：更柔和的灰 */
         body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         
-        /* 2. 卡片美化：增加层级感 */
         .card { 
             background: rgba(255, 255, 255, 0.95); 
             backdrop-filter: blur(10px);
@@ -25,20 +23,17 @@
         }
         .card:hover { 
             transform: translateY(-4px); 
-            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15); /* 悬浮时泛起淡淡的靛蓝色光晕 */
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15); 
             border-color: rgba(99, 102, 241, 0.2);
         }
 
-        /* 3. 按钮美化 */
         .btn-primary { background: #4f46e5; color: white; transition: all 0.2s; }
         .btn-primary:hover { background: #4338ca; shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
         .btn-primary:active { transform: scale(0.96); }
 
         .btn-ghost { background: #f1f5f9; color: #64748b; border: 1px dashed #cbd5e1; transition: all 0.2s; }
         .btn-ghost:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
-        .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; hover: none; }
 
-        /* 加载动画 */
         #loading-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #f8fafc; z-index: 999; display: flex;
@@ -53,29 +48,30 @@
     </style>
 </head>
 <body>
-    <!-- 加载页 -->
     <div id="loading-mask">
         <div class="loader"></div>
         <p class="mt-4 text-slate-500 text-sm font-medium">正在同步预约数据...</p>
     </div>
 
     <div id="app" class="max-w-[90rem] mx-auto p-4 md:p-8 pb-24" style="display:none;" v-cloak>
-        <!-- 头部：更现代的布局 -->
+        <!-- 头部 -->
         <header class="mb-10 flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6">
             <div>
                 <div class="flex items-center gap-3">
                     <span class="text-4xl">📅</span>
-                    <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">交大党建研究会组织部期末周自习室预约</h1>
+                    <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">组织部期末周自习室预约平台</h1>
                 </div>
                 <p class="text-slate-500 text-sm mt-2 font-medium pl-1">
                     你好，<span class="text-indigo-600 font-bold">${ currentUser || '同学' }</span> 
-                    <span v-if="!currentUser"> · 请先设置姓名</span>
+                    <span v-if="!currentUser"> · 请先验证身份</span>
                 </p>
             </div>
             
-            <div v-if="!currentUser" class="flex gap-3 items-center bg-white p-2 rounded-xl shadow-sm border border-slate-100">
-                <input v-model="tempName" @keyup.enter="login" type="text" placeholder="你的姓名" class="bg-slate-50 border-0 rounded-lg px-3 py-2 text-sm w-32 focus:ring-2 focus:ring-indigo-500 outline-none">
-                <button @click="login" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold shadow-md">开始使用</button>
+            <!-- 登录框修改：增加学号输入 -->
+            <div v-if="!currentUser" class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100 w-full md:w-auto">
+                <input v-model="tempName" type="text" placeholder="姓名 (如: 张三)" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-32">
+                <input v-model="tempId" @keyup.enter="login" type="text" placeholder="学号 (如: 5210...)" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-40">
+                <button @click="login" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold shadow-md whitespace-nowrap">验证进入</button>
             </div>
             <div v-else>
                 <button @click="logout" class="text-slate-400 text-xs hover:text-indigo-500 transition-colors font-medium">
@@ -84,11 +80,10 @@
             </div>
         </header>
 
-        <!-- 主内容：网格布局 -->
+        <!-- 主内容 -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <!-- 每一天 -->
             <div v-for="day in days" :key="day.dateStr" class="card flex flex-col h-full relative group">
-                <!-- 日期标题 -->
+                <!-- 日期 -->
                 <div class="p-4 border-b border-slate-100 bg-slate-50/50 rounded-t-xl flex justify-between items-center">
                     <div>
                         <span class="text-lg font-bold text-slate-800">${ formatDate(day.dateStr).split(' ')[0] }</span>
@@ -97,10 +92,7 @@
                 </div>
                 
                 <div class="p-4 space-y-4 flex-1">
-                    <!-- 三个时段 -->
-                    <div v-for="(slot, slotId) in day.slots" :key="slotId" class="relative pl-3 border-l-2" 
-                         :class="getSlotBorderColor(slot)">
-                        
+                    <div v-for="(slot, slotId) in day.slots" :key="slotId" class="relative pl-3 border-l-2" :class="getSlotBorderColor(slot)">
                         <!-- 时段头 -->
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="text-sm font-bold text-slate-700">${ slot.label }</h3>
@@ -112,13 +104,12 @@
                         <!-- 预约人区 -->
                         <div class="mb-2">
                             <div v-if="slot.booker" class="flex justify-between items-center bg-indigo-50/80 text-indigo-900 px-3 py-2 rounded-lg text-sm border border-indigo-100 shadow-sm">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-                                    <span class="font-bold">${ slot.booker }</span>
+                                <div class="flex items-center gap-2 overflow-hidden">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
+                                    <span class="font-bold truncate text-xs" :title="slot.booker">${ slot.booker }</span>
                                 </div>
-                                <span v-if="slot.booker === currentUser" class="text-xs text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer font-bold transition-colors" @click="cancelBooking(day, slot, 'booker')">取消</span>
+                                <span v-if="slot.booker === currentUser" class="text-xs text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer font-bold shrink-0" @click="cancelBooking(day, slot, 'booker')">取消</span>
                             </div>
-                            <!-- 空闲状态按钮 -->
                             <button v-else @click="bookAsMain(day, slot)" :disabled="slot.booker" class="w-full py-2 rounded-lg text-xs font-bold btn-ghost flex justify-center items-center gap-1">
                                 <span class="text-lg leading-none">+</span> 认领预约人
                             </button>
@@ -126,7 +117,6 @@
                         
                         <!-- 随行区 -->
                         <div>
-                            <!-- 随行人员胶囊 -->
                             <div v-if="slot.followers && slot.followers.length > 0" class="flex flex-wrap gap-2 mb-2">
                                 <span v-for="f in slot.followers" :key="f" class="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs text-slate-600 flex items-center gap-1 font-medium">
                                     ${ f }
@@ -134,7 +124,6 @@
                                 </span>
                             </div>
                             
-                            <!-- 加入按钮 -->
                             <button v-if="shouldShowFollowerBtn(slot)" 
                                     @click="bookAsFollower(day, slot)" 
                                     :disabled="isAlreadyFollower(slot)"
@@ -161,12 +150,7 @@
         const SERVER_URL = 'https://avoscloud.com';
         // --------------------------------
 
-        setTimeout(() => {
-            if (typeof AV === 'undefined') {
-                alert("加载超时，请检查网络。");
-            }
-        }, 5000);
-
+        setTimeout(() => { if (typeof AV === 'undefined') alert("加载超时，请检查网络。"); }, 5000);
         const { createApp, ref, onMounted } = Vue;
         if (typeof AV !== 'undefined') { AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL }); }
 
@@ -174,10 +158,11 @@
             compilerOptions: { delimiters: ['${', '}'] },
             setup() {
                 const days = ref([]);
-                const currentUser = ref(localStorage.getItem('sjtu_user') || '');
+                // 修改 Key 强制旧用户登出
+                const currentUser = ref(localStorage.getItem('sjtu_user_v2') || '');
                 const tempName = ref('');
+                const tempId = ref(''); // 新增学号
 
-                // 1. 修改这里：i < 8，显示 8 天
                 const initDays = () => {
                     const arr = [];
                     for(let i=0; i<8; i++) {
@@ -202,7 +187,6 @@
                         const query = new AV.Query('Booking');
                         query.greaterThanOrEqualTo('date', days.value[0].dateStr);
                         const results = await query.find();
-                        
                         results.forEach(record => {
                             const data = record.toJSON();
                             const targetDay = days.value.find(d => d.dateStr === data.date);
@@ -220,21 +204,28 @@
                     }
                 };
 
+                // --- 登录逻辑升级 ---
                 const login = () => {
                     if(!tempName.value) return alert('请输入姓名');
-                    currentUser.value = tempName.value;
-                    localStorage.setItem('sjtu_user', tempName.value);
+                    if(!tempId.value || tempId.value.length < 4) return alert('请输入正确的学号');
+                    
+                    // 自动截取后四位
+                    const last4 = tempId.value.slice(-4);
+                    // 组合成显示格式：张三 (1234)
+                    const finalName = `${tempName.value} (${last4})`;
+                    
+                    currentUser.value = finalName;
+                    localStorage.setItem('sjtu_user_v2', finalName);
                 };
-                const logout = () => { localStorage.removeItem('sjtu_user'); location.reload(); };
+                
+                const logout = () => { localStorage.removeItem('sjtu_user_v2'); location.reload(); };
 
-                // 2. 界面辅助函数：控制左侧边框颜色
+                // 辅助函数保持不变
                 const getSlotBorderColor = (slot) => {
-                    if (slot.booker) return 'border-indigo-500'; // 有人预约：深蓝
-                    if (slot.followers.length > 0) return 'border-orange-400'; // 缺人：橙色
-                    return 'border-slate-200'; // 空闲：灰
+                    if (slot.booker) return 'border-indigo-500';
+                    if (slot.followers.length > 0) return 'border-orange-400';
+                    return 'border-slate-200';
                 };
-
-                // 3. 界面辅助函数：Badge 样式
                 const getStatusBadgeClass = (slot) => {
                     const status = getStatusText(slot);
                     if (status === '已满') return 'bg-red-100 text-red-600';
@@ -242,11 +233,8 @@
                     if (status === '空闲') return 'bg-slate-100 text-slate-400';
                     return 'bg-emerald-100 text-emerald-600';
                 };
-
-                // 保持原有的随行人数 2 人限制
                 const shouldShowFollowerBtn = (slot) => !slot.followers || slot.followers.length < 2;
                 const isAlreadyFollower = (slot) => slot.followers && slot.followers.includes(currentUser.value);
-                
                 const getFollowerBtnText = (slot) => {
                     if (slot.followers && slot.followers.includes(currentUser.value)) return `已加入`;
                     const count = slot.followers ? slot.followers.length : 0;
@@ -254,7 +242,7 @@
                 };
 
                 const bookAsMain = async (day, slot) => {
-                    if(!currentUser.value) return alert('请先设置姓名');
+                    if(!currentUser.value) return alert('请先验证身份');
                     const { s1, s2, s3 } = day.slots;
                     if (slot.id === 's1' && s2.booker === currentUser.value) return alert('不能连续预约上午和下午！');
                     if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) return alert('不能连续预约相邻时段！');
@@ -266,7 +254,7 @@
                 };
 
                 const bookAsFollower = (day, slot) => {
-                    if(!currentUser.value) return alert('请先设置姓名');
+                    if(!currentUser.value) return alert('请先验证身份');
                     if(slot.booker === currentUser.value) return alert('你已经是该时段预约人了');
                     if(slot.followers.includes(currentUser.value)) return;
                     slot.followers.push(currentUser.value);
@@ -315,7 +303,7 @@
 
                 onMounted(() => { initDays(); fetchData(); });
 
-                return { days, currentUser, tempName, login, logout, bookAsMain, bookAsFollower, cancelBooking, formatDate, getStatusText, shouldShowFollowerBtn, getFollowerBtnText, isAlreadyFollower, getSlotBorderColor, getStatusBadgeClass };
+                return { days, currentUser, tempName, tempId, login, logout, bookAsMain, bookAsFollower, cancelBooking, formatDate, getStatusText, shouldShowFollowerBtn, getFollowerBtnText, isAlreadyFollower, getSlotBorderColor, getStatusBadgeClass };
             }
         });
         
@@ -323,4 +311,3 @@
     </script>
 </body>
 </html>
-
