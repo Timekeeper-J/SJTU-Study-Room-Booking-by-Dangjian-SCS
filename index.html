@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>组织部自习室预约</title>
     
-    <!-- 1. 换用阿里饿了么 CDN (npm.elemecdn.com) -->
-    <!-- 这是国内目前最可靠的 NPM 镜像源，专治各种 404 和 JSON 报错 -->
-    <script src="https://npm.elemecdn.com/vue@3.3.4/dist/vue.global.prod.js"></script>
-    <script src="https://npm.elemecdn.com/leancloud-storage@4.15.0/dist/av-min.js"></script>
-    
-    <!-- Tailwind 还是用官方的，如果这个加载失败，网页会变丑但能用 -->
+    <!-- 1. 换用 JSDelivr (GitHub 官方 CDN，最稳定) -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
@@ -30,8 +27,10 @@
 </head>
 <body>
     <div id="loading-mask">
-        <h2 style="font-size:20px; font-weight:bold;">正在加载数据库...</h2>
-        <p style="font-size:12px; margin-top:10px; color:#999">如长时间卡住，请尝试切换网络（关闭代理）</p>
+        <h2 style="font-size:20px; font-weight:bold;">正在初始化...</h2>
+        <p id="error-msg" style="font-size:12px; margin-top:10px; color:#999; text-align:center">
+            正在连接数据库，请稍候...
+        </p>
     </div>
 
     <div id="app" class="max-w-7xl mx-auto p-6 pb-20" style="display:none;" v-cloak>
@@ -58,6 +57,7 @@
                             <span :class="getStatusColor(slot)" class="text-xs font-bold px-2 py-1 rounded-full bg-opacity-20 whitespace-nowrap">${ getStatusText(slot) }</span>
                         </div>
 
+                        <!-- 预约人 -->
                         <div class="mb-3">
                             <div v-if="slot.booker" class="flex justify-between items-center bg-blue-50 text-blue-900 px-3 py-2 rounded-lg font-medium text-sm">
                                 <span><span class="text-xs mr-1 opacity-60">预约:</span> ${ slot.booker }</span>
@@ -68,6 +68,7 @@
                             </button>
                         </div>
                         
+                        <!-- 随行人 -->
                         <div>
                             <div class="flex flex-wrap gap-2 min-h-[28px]">
                                 <span v-for="f in slot.followers" :key="f" class="bg-gray-200 px-2 py-0.5 rounded text-xs text-gray-700 flex items-center gap-1">
@@ -75,6 +76,7 @@
                                     <span v-if="f === currentUser" class="text-red-400 cursor-pointer" @click="cancelBooking(day, slot, 'follower')">×</span>
                                 </span>
                             </div>
+                            <!-- 这里的逻辑已经改为 < 2 -->
                             <button v-if="shouldShowFollowerBtn(slot)" 
                                     @click="bookAsFollower(day, slot)" 
                                     :disabled="isAlreadyFollower(slot)"
@@ -91,34 +93,25 @@
     </div>
 
     <script>
-        // 兜底错误处理：如果CDN真的全挂了，在页面上显示大红字，而不是一片白
-        window.onerror = function(msg, url, line) { 
-            console.error('Global Error:', msg); 
-            if(msg.includes('Vue') || msg.includes('AV')) {
-                document.getElementById('loading-mask').innerHTML = 
-                    '<h2 style="color:red;padding:20px;text-align:center">CDN 资源加载失败</h2>' +
-                    '<p style="text-align:center">请检查网络，或尝试使用手机热点。</p>';
-            }
-            return false; 
-        };
-
-        // --- ⚠️ 别忘了把你的 AppID 和 Key 填回来！---
+        // --- ⚠️ 最后一次提醒：填入你的 AppID 和 Key ---
         const APP_ID = 'MpWMjFVRc0H3Y5BAQuUk0DN7-gzGzoHsz'; 
         const APP_KEY = '6VXWHUYqbTjNVtqqnhmoJOzN';
         const SERVER_URL = 'https://avoscloud.com';
         // ------------------------------------------
 
-        // 检测 Vue 是否加载成功
-        if (typeof Vue === 'undefined') {
-            throw new Error('Vue load failed');
-        }
+        // 检查核心库是否加载成功
+        setTimeout(() => {
+            if (typeof AV === 'undefined') {
+                document.getElementById('error-msg').innerHTML = 
+                    '<span style="color:red;font-weight:bold">LeanCloud 加载失败</span><br>请尝试关闭VPN或切换手机热点刷新';
+            }
+        }, 3000); // 3秒后检查
 
         const { createApp, ref, onMounted } = Vue;
-        
+
+        // 初始化 SDK
         if (typeof AV !== 'undefined') {
             AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL });
-        } else {
-            console.error("LeanCloud SDK load failed");
         }
 
         const app = createApp({
@@ -147,6 +140,9 @@
                 };
 
                 const fetchData = async () => {
+                    // 如果 SDK 没加载，直接中断，防止报错
+                    if (typeof AV === 'undefined') return;
+
                     try {
                         const query = new AV.Query('Booking');
                         query.greaterThanOrEqualTo('date', days.value[0].dateStr);
@@ -157,18 +153,15 @@
                             const targetDay = days.value.find(d => d.dateStr === data.date);
                             if(targetDay && data.slots) {
                                 targetDay.id = record.objectId;
-                                // 安全合并数据
                                 if(data.slots.s1) Object.assign(targetDay.slots.s1, data.slots.s1);
                                 if(data.slots.s2) Object.assign(targetDay.slots.s2, data.slots.s2);
                                 if(data.slots.s3) Object.assign(targetDay.slots.s3, data.slots.s3);
                             }
                         });
                     } catch(e) {
-                        console.error("Fetch Data Error:", e);
+                        console.error(e);
                     } finally {
-                        // 无论成功失败，都隐藏加载动画，防止卡死
-                        const mask = document.getElementById('loading-mask');
-                        if(mask) mask.style.display = 'none';
+                        document.getElementById('loading-mask').style.display = 'none';
                         document.getElementById('app').style.display = 'block';
                     }
                 };
@@ -183,19 +176,22 @@
                     location.reload();
                 };
 
-                // UI 辅助逻辑
-                const shouldShowFollowerBtn = (slot) => !slot.followers || slot.followers.length < 3;
+                // --- 修改：随行人限制改为 2 人 ---
+                const shouldShowFollowerBtn = (slot) => !slot.followers || slot.followers.length < 2;
+                
                 const isAlreadyFollower = (slot) => slot.followers && slot.followers.includes(currentUser.value);
+                
                 const getFollowerBtnText = (slot) => {
                     if (slot.followers && slot.followers.includes(currentUser.value)) {
-                        return `已加入 (${slot.followers.length}/3)`;
+                        return `已加入 (${slot.followers.length}/2)`;
                     }
-                    return `+ 加入随行 (${slot.followers ? slot.followers.length : 0}/3)`;
+                    return `+ 加入随行 (${slot.followers ? slot.followers.length : 0}/2)`;
                 };
+                // --------------------------------
 
                 const bookAsMain = async (day, slot) => {
                     if(!currentUser.value) return alert('请先设置姓名');
-
+                    
                     const { s1, s2, s3 } = day.slots;
                     if (slot.id === 's1' && s2.booker === currentUser.value) return alert('不能连续预约上午和下午两个时段哦！');
                     if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) return alert('不能连续预约相邻的两个时段哦！');
@@ -228,10 +224,11 @@
                 };
 
                 const saveToCloud = async (day) => {
+                    // 如果 SDK 没加载，弹窗提示
+                    if (typeof AV === 'undefined') return alert('连接数据库失败，无法保存。请刷新页面。');
+
                     try {
-                        // 使用 JSON 深拷贝去除 Vue 的 Proxy 代理，防止 LeanCloud 报错
                         const cleanSlots = JSON.parse(JSON.stringify(day.slots));
-                        
                         if(day.id) {
                             const todo = AV.Object.createWithoutData('Booking', day.id);
                             todo.set('slots', cleanSlots);
@@ -246,7 +243,7 @@
                         }
                     } catch (error) {
                         console.error(error);
-                        alert('保存失败，可能网络不稳定，请刷新重试');
+                        alert('保存失败，请检查网络');
                         fetchData();
                     }
                 };
@@ -257,8 +254,9 @@
                     return `${d.getMonth()+1}.${d.getDate()} 周${week[d.getDay()]}`;
                 };
                 
+                // --- 修改：状态文字逻辑 ---
                 const getStatusText = (slot) => {
-                    const isFull = slot.followers && slot.followers.length >= 3;
+                    const isFull = slot.followers && slot.followers.length >= 2; // 改为2
                     if (slot.booker && isFull) return '已满员';
                     if (!slot.booker && (!slot.followers || slot.followers.length === 0)) return '空闲';
                     if (!slot.booker && slot.followers.length > 0) return '缺预约人';
