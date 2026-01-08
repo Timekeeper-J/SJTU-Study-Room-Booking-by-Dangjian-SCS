@@ -3,87 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>组织部自习室预约</title>
+    <title>组织部自习室预约系统</title>
     
-    <!-- 核心库 (JSDelivr 源，稳定) -->
+    <!-- 核心库 -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
         body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-        
-        .card { 
-            background: rgba(255, 255, 255, 0.95); 
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.5);
-            border-radius: 16px; 
-            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05); 
-            transition: all 0.3s ease; 
-        }
-        .card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15); 
-            border-color: rgba(99, 102, 241, 0.2);
-        }
-
+        .card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5); border-radius: 16px; box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05); transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.2); }
         .btn-primary { background: #4f46e5; color: white; transition: all 0.2s; }
         .btn-primary:hover { background: #4338ca; shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
         .btn-primary:active { transform: scale(0.96); }
-
         .btn-ghost { background: #f1f5f9; color: #64748b; border: 1px dashed #cbd5e1; transition: all 0.2s; }
         .btn-ghost:hover { border-color: #4f46e5; color: #4f46e5; background: #eef2ff; }
-
-        #loading-mask {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #f8fafc; z-index: 999; display: flex;
-            justify-content: center; align-items: center; flex-direction: column;
-        }
-        .loader {
-            width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
+        #loading-mask { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f8fafc; z-index: 999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .loader { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         [v-cloak] { display: none; }
     </style>
 </head>
 <body>
-    <div id="loading-mask">
-        <div class="loader"></div>
-        <p class="mt-4 text-slate-500 text-sm font-medium">正在同步预约数据...</p>
-    </div>
+    <div id="loading-mask"><div class="loader"></div><p class="mt-4 text-slate-500 text-sm">正在加载数据...</p></div>
 
     <div id="app" class="max-w-[90rem] mx-auto p-4 md:p-8 pb-24" style="display:none;" v-cloak>
-        <!-- 头部 -->
         <header class="mb-10 flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6">
             <div>
                 <div class="flex items-center gap-3">
                     <span class="text-4xl">📅</span>
-                    <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">组织部期末周自习室预约平台</h1>
+                    <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">组织部期末周自习室预约</h1>
                 </div>
                 <p class="text-slate-500 text-sm mt-2 font-medium pl-1">
-                    你好，<span class="text-indigo-600 font-bold">${ currentUser || '同学' }</span> 
-                    <span v-if="!currentUser"> · 请先验证身份</span>
+                    <!-- 管理员状态显示 -->
+                    <span v-if="isAdmin" class="text-red-600 font-bold bg-red-50 px-2 py-1 rounded border border-red-100">🛡️ 管理员模式</span>
+                    <span v-else>你好，<span class="text-indigo-600 font-bold">${ currentUser || '同学' }</span></span>
                 </p>
             </div>
             
-            <!-- 登录框修改：增加学号输入 -->
             <div v-if="!currentUser" class="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100 w-full md:w-auto">
-                <input v-model="tempName" type="text" placeholder="姓名 (如: 张三)" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-32">
-                <input v-model="tempId" @keyup.enter="login" type="text" placeholder="学号 (如: 5210...)" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-40">
+                <input v-model="tempName" type="text" placeholder="姓名" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-32">
+                <input v-model="tempId" @keyup.enter="login" type="text" placeholder="学号" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-40">
                 <button @click="login" class="btn-primary px-4 py-2 rounded-lg text-sm font-bold shadow-md whitespace-nowrap">验证进入</button>
             </div>
             <div v-else>
-                <button @click="logout" class="text-slate-400 text-xs hover:text-indigo-500 transition-colors font-medium">
-                    切换账号 &rarr;
-                </button>
+                <button @click="logout" class="text-slate-400 text-xs hover:text-indigo-500 transition-colors font-medium">切换账号 &rarr;</button>
             </div>
         </header>
 
-        <!-- 主内容 -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <div v-for="day in days" :key="day.dateStr" class="card flex flex-col h-full relative group">
-                <!-- 日期 -->
                 <div class="p-4 border-b border-slate-100 bg-slate-50/50 rounded-t-xl flex justify-between items-center">
                     <div>
                         <span class="text-lg font-bold text-slate-800">${ formatDate(day.dateStr).split(' ')[0] }</span>
@@ -93,12 +63,9 @@
                 
                 <div class="p-4 space-y-4 flex-1">
                     <div v-for="(slot, slotId) in day.slots" :key="slotId" class="relative pl-3 border-l-2" :class="getSlotBorderColor(slot)">
-                        <!-- 时段头 -->
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="text-sm font-bold text-slate-700">${ slot.label }</h3>
-                            <span :class="getStatusBadgeClass(slot)" class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                ${ getStatusText(slot) }
-                            </span>
+                            <span :class="getStatusBadgeClass(slot)" class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">${ getStatusText(slot) }</span>
                         </div>
 
                         <!-- 预约人区 -->
@@ -108,7 +75,12 @@
                                     <span class="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
                                     <span class="font-bold truncate text-xs" :title="slot.booker">${ slot.booker }</span>
                                 </div>
-                                <span v-if="slot.booker === currentUser" class="text-xs text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer font-bold shrink-0" @click="cancelBooking(day, slot, 'booker')">取消</span>
+                                <!-- 管理员特权：显示强制删除按钮 -->
+                                <span v-if="slot.booker === currentUser || isAdmin" 
+                                      class="text-xs text-red-500 hover:bg-red-50 p-1 rounded cursor-pointer font-bold shrink-0" 
+                                      @click="cancelBooking(day, slot, 'booker', slot.booker)">
+                                    ${ isAdmin && slot.booker !== currentUser ? '强制删除' : '取消' }
+                                </span>
                             </div>
                             <button v-else @click="bookAsMain(day, slot)" :disabled="slot.booker" class="w-full py-2 rounded-lg text-xs font-bold btn-ghost flex justify-center items-center gap-1">
                                 <span class="text-lg leading-none">+</span> 认领预约人
@@ -120,13 +92,16 @@
                             <div v-if="slot.followers && slot.followers.length > 0" class="flex flex-wrap gap-2 mb-2">
                                 <span v-for="f in slot.followers" :key="f" class="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs text-slate-600 flex items-center gap-1 font-medium">
                                     ${ f }
-                                    <span v-if="f === currentUser" class="text-red-400 hover:text-red-600 cursor-pointer text-sm leading-none ml-0.5" @click="cancelBooking(day, slot, 'follower')">&times;</span>
+                                    <!-- 管理员特权：强制删除随行人 -->
+                                    <span v-if="f === currentUser || isAdmin" 
+                                          class="text-red-400 hover:text-red-600 cursor-pointer text-sm leading-none ml-0.5" 
+                                          @click="cancelBooking(day, slot, 'follower', f)">
+                                          &times;
+                                    </span>
                                 </span>
                             </div>
                             
-                            <button v-if="shouldShowFollowerBtn(slot)" 
-                                    @click="bookAsFollower(day, slot)" 
-                                    :disabled="isAlreadyFollower(slot)"
+                            <button v-if="shouldShowFollowerBtn(slot)" @click="bookAsFollower(day, slot)" :disabled="isAlreadyFollower(slot)"
                                     class="w-full py-1.5 rounded border border-transparent text-slate-400 text-xs hover:text-indigo-600 hover:bg-indigo-50 transition-all font-medium flex items-center justify-center gap-1">
                                 ${ getFollowerBtnText(slot) }
                             </button>
@@ -136,11 +111,7 @@
             </div>
         </div>
         
-        <div class="mt-16 border-t border-slate-200 pt-8 text-center">
-            <p class="text-slate-400 text-xs font-medium tracking-wide">
-                上海交通大学计算机学院党建研究会组织部 · Code by Yishu
-            </p>
-        </div>
+        <div class="mt-16 border-t border-slate-200 pt-8 text-center text-slate-400 text-xs font-medium">上海交大计算机学院党建研究会组织部</div>
     </div>
 
     <script>
@@ -150,7 +121,7 @@
         const SERVER_URL = 'https://avoscloud.com';
         // --------------------------------
 
-        setTimeout(() => { if (typeof AV === 'undefined') alert("加载超时，请检查网络。"); }, 5000);
+        setTimeout(() => { if (typeof AV === 'undefined') alert("加载超时，请检查网络"); }, 5000);
         const { createApp, ref, onMounted } = Vue;
         if (typeof AV !== 'undefined') { AV.init({ appId: APP_ID, appKey: APP_KEY, serverURLs: SERVER_URL }); }
 
@@ -158,25 +129,17 @@
             compilerOptions: { delimiters: ['${', '}'] },
             setup() {
                 const days = ref([]);
-                // 修改 Key 强制旧用户登出
                 const currentUser = ref(localStorage.getItem('sjtu_user_v2') || '');
+                const isAdmin = ref(localStorage.getItem('sjtu_is_admin') === 'true'); // 增加管理员状态
                 const tempName = ref('');
-                const tempId = ref(''); // 新增学号
+                const tempId = ref('');
 
                 const initDays = () => {
                     const arr = [];
                     for(let i=0; i<8; i++) {
-                        const d = new Date();
-                        d.setDate(d.getDate() + i);
+                        const d = new Date(); d.setDate(d.getDate() + i);
                         const dateStr = d.toISOString().split('T')[0];
-                        arr.push({ 
-                            dateStr, 
-                            slots: {
-                                s1: { id: 's1', label: '09:00 - 13:00', booker: null, followers: [] },
-                                s2: { id: 's2', label: '14:00 - 18:00', booker: null, followers: [] },
-                                s3: { id: 's3', label: '19:00 - 22:30', booker: null, followers: [] }
-                            }
-                        });
+                        arr.push({ dateStr, slots: { s1: { id: 's1', label: '09:00 - 13:00', booker: null, followers: [] }, s2: { id: 's2', label: '14:00 - 18:00', booker: null, followers: [] }, s3: { id: 's3', label: '19:00 - 22:30', booker: null, followers: [] } } });
                     }
                     days.value = arr;
                 };
@@ -198,47 +161,35 @@
                             }
                         });
                     } catch(e) { console.error(e); } 
-                    finally { 
-                        document.getElementById('loading-mask').style.display = 'none';
-                        document.getElementById('app').style.display = 'block';
-                    }
+                    finally { document.getElementById('loading-mask').style.display = 'none'; document.getElementById('app').style.display = 'block'; }
                 };
 
-                // --- 登录逻辑升级 ---
                 const login = () => {
+                    // --- ⚠️ 管理员暗号设置区 ---
+                    if (tempName.value === 'admin' && tempId.value === 'sjtu666') {
+                        isAdmin.value = true;
+                        currentUser.value = '管理员';
+                        localStorage.setItem('sjtu_user_v2', '管理员');
+                        localStorage.setItem('sjtu_is_admin', 'true');
+                        alert("管理员模式已开启，你有权删除任何记录");
+                        return;
+                    }
+                    // -------------------------
+
                     if(!tempName.value) return alert('请输入姓名');
                     if(!tempId.value || tempId.value.length < 4) return alert('请输入正确的学号');
-                    
-                    // 自动截取后四位
                     const last4 = tempId.value.slice(-4);
-                    // 组合成显示格式：张三 (1234)
                     const finalName = `${tempName.value} (${last4})`;
-                    
                     currentUser.value = finalName;
+                    isAdmin.value = false; // 普通用户
                     localStorage.setItem('sjtu_user_v2', finalName);
+                    localStorage.setItem('sjtu_is_admin', 'false');
                 };
                 
-                const logout = () => { localStorage.removeItem('sjtu_user_v2'); location.reload(); };
-
-                // 辅助函数保持不变
-                const getSlotBorderColor = (slot) => {
-                    if (slot.booker) return 'border-indigo-500';
-                    if (slot.followers.length > 0) return 'border-orange-400';
-                    return 'border-slate-200';
-                };
-                const getStatusBadgeClass = (slot) => {
-                    const status = getStatusText(slot);
-                    if (status === '已满') return 'bg-red-100 text-red-600';
-                    if (status === '缺预约人') return 'bg-orange-100 text-orange-600';
-                    if (status === '空闲') return 'bg-slate-100 text-slate-400';
-                    return 'bg-emerald-100 text-emerald-600';
-                };
-                const shouldShowFollowerBtn = (slot) => !slot.followers || slot.followers.length < 2;
-                const isAlreadyFollower = (slot) => slot.followers && slot.followers.includes(currentUser.value);
-                const getFollowerBtnText = (slot) => {
-                    if (slot.followers && slot.followers.includes(currentUser.value)) return `已加入`;
-                    const count = slot.followers ? slot.followers.length : 0;
-                    return count === 0 ? '+ 加入随行' : `+ 加入随行 (${count}/2)`;
+                const logout = () => { 
+                    localStorage.removeItem('sjtu_user_v2'); 
+                    localStorage.removeItem('sjtu_is_admin');
+                    location.reload(); 
                 };
 
                 const bookAsMain = async (day, slot) => {
@@ -247,7 +198,6 @@
                     if (slot.id === 's1' && s2.booker === currentUser.value) return alert('不能连续预约上午和下午！');
                     if (slot.id === 's2' && (s1.booker === currentUser.value || s3.booker === currentUser.value)) return alert('不能连续预约相邻时段！');
                     if (slot.id === 's3' && s2.booker === currentUser.value) return alert('不能连续预约下午和晚上！');
-
                     if(slot.followers.includes(currentUser.value)) slot.followers = slot.followers.filter(n => n !== currentUser.value);
                     slot.booker = currentUser.value;
                     saveToCloud(day);
@@ -261,10 +211,16 @@
                     saveToCloud(day);
                 };
 
-                const cancelBooking = (day, slot, role) => {
-                    if(!confirm('确定取消吗？')) return;
+                // 修改：取消逻辑增加 targetName 参数
+                const cancelBooking = (day, slot, role, targetName) => {
+                    // 如果不是管理员，且删的不是自己，拦截
+                    if (!isAdmin.value && targetName !== currentUser.value) return;
+
+                    const msg = isAdmin.value ? `管理员操作：确定要强制删除 [${targetName}] 吗？` : '确定取消吗？';
+                    if(!confirm(msg)) return;
+
                     if(role === 'booker') slot.booker = null;
-                    else slot.followers = slot.followers.filter(n => n !== currentUser.value);
+                    else slot.followers = slot.followers.filter(n => n !== targetName);
                     saveToCloud(day);
                 };
 
@@ -287,12 +243,8 @@
                     } catch (error) { console.error(error); alert('保存失败'); fetchData(); }
                 };
                 
-                const formatDate = (str) => {
-                    const d = new Date(str);
-                    const week = ['周日','周一','周二','周三','周四','周五','周六'];
-                    return `${d.getMonth()+1}.${d.getDate()} ${week[d.getDay()]}`;
-                };
-                
+                // Helpers
+                const getSlotBorderColor = (slot) => slot.booker ? 'border-indigo-500' : (slot.followers.length > 0 ? 'border-orange-400' : 'border-slate-200');
                 const getStatusText = (slot) => {
                     const isFull = slot.followers && slot.followers.length >= 2;
                     if (slot.booker && isFull) return '已满';
@@ -300,13 +252,22 @@
                     if (!slot.booker && slot.followers.length > 0) return '缺预约人';
                     return '可加入';
                 };
+                const getStatusBadgeClass = (slot) => {
+                    const status = getStatusText(slot);
+                    if (status === '已满') return 'bg-red-100 text-red-600';
+                    if (status === '缺预约人') return 'bg-orange-100 text-orange-600';
+                    if (status === '空闲') return 'bg-slate-100 text-slate-400';
+                    return 'bg-emerald-100 text-emerald-600';
+                };
+                const shouldShowFollowerBtn = (slot) => !slot.followers || slot.followers.length < 2;
+                const isAlreadyFollower = (slot) => slot.followers && slot.followers.includes(currentUser.value);
+                const getFollowerBtnText = (slot) => (slot.followers && slot.followers.includes(currentUser.value)) ? `已加入` : (slot.followers && slot.followers.length > 0 ? `+ 加入随行 (${slot.followers.length}/2)` : '+ 加入随行');
+                const formatDate = (str) => { const d = new Date(str); const week = ['周日','周一','周二','周三','周四','周五','周六']; return `${d.getMonth()+1}.${d.getDate()} ${week[d.getDay()]}`; };
 
                 onMounted(() => { initDays(); fetchData(); });
-
-                return { days, currentUser, tempName, tempId, login, logout, bookAsMain, bookAsFollower, cancelBooking, formatDate, getStatusText, shouldShowFollowerBtn, getFollowerBtnText, isAlreadyFollower, getSlotBorderColor, getStatusBadgeClass };
+                return { days, currentUser, isAdmin, tempName, tempId, login, logout, bookAsMain, bookAsFollower, cancelBooking, formatDate, getStatusText, shouldShowFollowerBtn, getFollowerBtnText, isAlreadyFollower, getSlotBorderColor, getStatusBadgeClass };
             }
         });
-        
         app.mount('#app');
     </script>
 </body>
